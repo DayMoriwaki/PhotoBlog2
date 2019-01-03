@@ -23,11 +23,15 @@ import com.google.android.gms.auth.api.signin.internal.Storage;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 import com.theartofdev.edmodo.cropper.CropImage;
 import com.theartofdev.edmodo.cropper.CropImageView;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
@@ -42,6 +46,7 @@ public class SetupActivity extends AppCompatActivity {
 
     private StorageReference storageReference;
     private FirebaseAuth firebaseAuth;
+    private FirebaseFirestore firebaseFirestore;
 
 
     @Override
@@ -54,6 +59,7 @@ public class SetupActivity extends AppCompatActivity {
         getSupportActionBar().setTitle("Account Setup");
 
         firebaseAuth = FirebaseAuth.getInstance();
+        firebaseFirestore = FirebaseFirestore.getInstance();
         storageReference = FirebaseStorage.getInstance().getReference();
 
         setupImage = findViewById(R.id.setup_image);
@@ -65,11 +71,11 @@ public class SetupActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
 
-                String user_name = setupName.getText().toString();
+                final String user_name = setupName.getText().toString();
 
                 if(!TextUtils.isEmpty(user_name) && mainImageURI != null){
 
-                    String user_id = firebaseAuth.getCurrentUser().getUid();
+                    final String user_id = firebaseAuth.getCurrentUser().getUid();
                     setupProgress.setVisibility(View.VISIBLE);
 
                     StorageReference image_path = storageReference.child("profile_images").child(user_id + ".jpg");
@@ -82,13 +88,39 @@ public class SetupActivity extends AppCompatActivity {
                             if(task.isSuccessful()){
 
                                 download_uri = task.getResult().getUploadSessionUri();
-                                Toast.makeText(SetupActivity.this, "The Image is Uploaded", Toast.LENGTH_LONG).show();
+
+                                Map<String, String> userMap = new HashMap<>();
+                                userMap.put("name", user_name);
+                                userMap.put("image", download_uri.toString());
+
+                                firebaseFirestore.collection("Users").document(user_id).set(userMap).addOnCompleteListener(new OnCompleteListener<Void>() {
+                                    @Override
+                                    public void onComplete(@NonNull Task<Void> task) {
+
+                                        if(task.isSuccessful()){
+
+                                            Toast.makeText(SetupActivity.this, "The user Settings are updated.", Toast.LENGTH_LONG).show();
+                                            Intent mainIntent = new Intent(SetupActivity.this, MainActivity.class);
+                                            startActivity(mainIntent);
+                                            finish();
+
+                                        }else{
+
+                                            String error = task.getException().getMessage();
+                                            Toast.makeText(SetupActivity.this, "(FIRESTORE Error) :" + error, Toast.LENGTH_LONG).show();
+
+
+                                        }
+
+                                    }
+                                });
+//                                Toast.makeText(SetupActivity.this, "The Image is Uploaded", Toast.LENGTH_LONG).show();
 
 
                             }else{
 
                                 String error = task.getException().getMessage();
-                                Toast.makeText(SetupActivity.this, "Error :" + error, Toast.LENGTH_LONG).show();
+                                Toast.makeText(SetupActivity.this, "(IMAGE Error) :" + error, Toast.LENGTH_LONG).show();
 
                             }
 
@@ -117,13 +149,15 @@ public class SetupActivity extends AppCompatActivity {
 
                     }else{
 
-//                        Toast.makeText(SetupActivity.this, "You already have permission", Toast.LENGTH_LONG).show();
-                        CropImage.activity()
-                                .setGuidelines(CropImageView.Guidelines.ON)
-                                .setAspectRatio(1,1)
-                                .start(SetupActivity.this);
+                        BringImagePicker();
+
 
                     }
+
+                }else{
+
+                    BringImagePicker();
+
 
                 }
 
@@ -132,6 +166,15 @@ public class SetupActivity extends AppCompatActivity {
             }
         });
 
+    }
+
+    private void BringImagePicker() {
+
+        Toast.makeText(SetupActivity.this, "You already have permission", Toast.LENGTH_LONG).show();
+                        CropImage.activity()
+                                .setGuidelines(CropImageView.Guidelines.ON)
+                                .setAspectRatio(1,1)
+                                .start(SetupActivity.this);
     }
 
 //    @Override
